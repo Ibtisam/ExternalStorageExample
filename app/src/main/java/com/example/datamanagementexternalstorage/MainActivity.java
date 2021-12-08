@@ -5,6 +5,8 @@ import android.content.pm.PackageManager;
 import android.os.Environment;
 import androidx.appcompat.app.AppCompatActivity;
 import android.os.Bundle;
+import android.view.View;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -20,78 +22,123 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 
 public class MainActivity extends AppCompatActivity {
-
-    private final String fileName = "data.txt";
-    private String baseFolder;
-
+    private String fileName = "data";
+    private EditText editText;
+    private File primaryExternalStorage;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            // Should we show an explanation?
-            requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
-        }
-
-        if (Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState())) {
-
-            //baseFolder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getAbsolutePath();
-
-            File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), fileName);
-
-            if (!file.exists()) {
-                try {
-
-                    writeFile(file);
-
-                } catch (FileNotFoundException e) {
-                    Toast.makeText(this, "FileNotFoundException", Toast.LENGTH_SHORT).show();
-                }
-            }
-            // Read the data from the text file and display it
-            try {
-
-                readFile(file);
-
-            } catch (IOException e) {
-                Toast.makeText(this, "IOException", Toast.LENGTH_SHORT).show();
-            }
-        }
+        editText = findViewById(R.id.editText);
 
     }
 
-    private void writeFile(File outFile) throws FileNotFoundException {
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if(!isExternalStorageWritable()){
+            Toast.makeText(this, "Media not available, app will exit", Toast.LENGTH_SHORT).show();
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException interruptedException) {
+                interruptedException.printStackTrace();
+            }finally {
+                finish();
+            }
+        }
+    }
 
-        FileOutputStream fos = new FileOutputStream(outFile);
+    // Checks if a volume containing external storage is available
+    // for read and write.
+    private boolean isExternalStorageWritable() {
+        return Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED);
+    }
 
-        PrintWriter pw = new PrintWriter(new BufferedWriter(
-                new OutputStreamWriter(fos)));
+    // Checks if a volume containing external storage is available to at least read.
+    private boolean isExternalStorageReadable() {
+        return Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED) ||
+                Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED_READ_ONLY);
+    }
 
-        pw.println("Line 1: This is a test of the File Writing API");
-        pw.println("Line 2: This is a test of the File Writing API");
-        pw.println("Line 3: This is a test of the File Writing API");
+    private void writeToFile(File file) throws IOException {
+        FileOutputStream fos = new FileOutputStream(file);
+        PrintWriter pw = new PrintWriter(new BufferedWriter(new OutputStreamWriter(fos)));
 
+        pw.println(editText.getText().toString());
         pw.close();
 
     }
 
-    private void readFile(File inFile) throws IOException {
-
-        FileInputStream fis = new FileInputStream(inFile);
+    private void readFromFile(File file) throws IOException {
+        FileInputStream fis = new FileInputStream(file);
         BufferedReader br = new BufferedReader(new InputStreamReader(fis));
 
         String line = "";
-
         while (null != (line = br.readLine())) {
-
-            TextView tv = findViewById(R.id.fileOutTV);
-            tv.append(line+"\n");
-
+            editText.append(line);
         }
-
         br.close();
-
     }
+
+    public void filesWBClicked(View v){
+        try {
+            //selecting the external storage in case sd card is also available
+            File[] externalStorageVolumes = getExternalFilesDirs(null);
+            primaryExternalStorage = externalStorageVolumes[0];
+            File file = new File(primaryExternalStorage, fileName);
+            writeToFile(file);
+        } catch (IOException e) {
+            Toast.makeText(this, "FileNotFoundException", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    public void cacheWBClicked(View v){
+        try {
+            File[] externalStorageVolumes = getExternalCacheDirs();
+            primaryExternalStorage = externalStorageVolumes[0];
+            File file = new File(primaryExternalStorage, fileName);
+            writeToFile(file);
+        } catch (IOException e) {
+            Toast.makeText(this, "FileNotFoundException", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    public void filesRBClicked(View v){
+        try {
+            File[] externalStorageVolumes = getExternalFilesDirs(null);
+            primaryExternalStorage = externalStorageVolumes[0];
+            File file = new File(primaryExternalStorage, fileName);
+            readFromFile(file);
+        } catch (IOException e) {
+            Toast.makeText(this, "IOException"+e.toString(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    public void cacheRBClicked(View v){
+        try {
+            File[] externalStorageVolumes = getExternalCacheDirs();
+            primaryExternalStorage = externalStorageVolumes[0];
+            File file = new File(primaryExternalStorage, fileName);
+            readFromFile(file);
+        } catch (IOException e) {
+            Toast.makeText(this, "IOException"+e.toString(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    public void resetBClicked(View v){
+        editText.setText("");
+    }
+
+    public void delBClicked(View v){
+        File cacheDir = getExternalCacheDir();
+        for(File file:cacheDir.listFiles()){
+            file.delete();
+        }
+        File filesDir = getExternalFilesDir(null);
+        for(File file:filesDir.listFiles()){
+            file.delete();
+        }
+        Toast.makeText(this, "All files deleted from internal storage", Toast.LENGTH_SHORT).show();
+    }
+
 }
